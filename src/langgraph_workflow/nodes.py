@@ -1,7 +1,7 @@
 import operator
 from typing import List
 
-from langchain_core.messages import FunctionMessage
+from langchain_core.messages import FunctionMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 
 from src.langgraph_workflow.models.graph_state import AgentState
@@ -10,16 +10,22 @@ from src.regression_model.regression import RegressionModel
 # 이 파일은 워크플로우의 노드들을 정의합니다.
 
 
-def call_regression_model_node(state: AgentState, model: RegressionModel):
+def call_regression_model_node(state: AgentState):
     """
-    RegressionModel을 호출하여 응답을 생성합니다.
+    RegressionModel을 호출하여 예측을 수행하고 결과를 상태에 추가합니다.
     """
-    user_input = state["messages"][-1].content
-    regression_model = RegressionModel(user_input)
-    return_value = regression_model.evaluate()
+    print("---회귀 모델 호출---")
+    user_input = state["user_input"]
+    regression_model = RegressionModel()
+    prediction = regression_model.predict(user_input)
 
-    return {"regreesion_return": return_value,
-            "messages": [return_value]}
+    # 예측 결과를 문자열로 변환하여 상태에 저장
+    result_message = f"회귀 모델 예측 결과: {prediction}"
+
+    return {
+        "regression_return": str(prediction),
+        "messages": [HumanMessage(content=result_message)]
+    }
 
 def call_model_node(state: AgentState, model: ChatOpenAI, tools: list):
     """
