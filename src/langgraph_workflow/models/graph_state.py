@@ -1,0 +1,24 @@
+import operator
+from typing import Annotated, List, TypedDict
+
+from langchain_core.messages import BaseMessage
+# node 간에 전달되어야하는 instance나 data를 정의의
+class AgentState(TypedDict):
+    """
+    워크플로우의 상태를 나타내는 TypedDict입니다.
+    노드 간에 메시지 목록을 전달합니다.
+    """
+
+
+
+    # init_state
+    user_input: str
+    # 노드 간에 전달되어야하는 데이터
+    messages: Annotated[List[BaseMessage], operator.add]
+    # 노드 간에 전달되어야하는 데이터
+    regression_return: str
+    # 노드 간에 전달되어야하는 데이터
+    model_return: str
+    # 노드 간에 전달되어야하는 데이터
+    tool_return: str
+    # 노드 간에 전달되어야하는 데이터
