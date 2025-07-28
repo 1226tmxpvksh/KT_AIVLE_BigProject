@@ -50,8 +50,17 @@ def generate_report_node(state: AgentState): # 타입을 AgentState로 변경
         sales_prediction = reg_data.get('sales_prediction', 'N/A')
         prediction_name = reg_data.get('name', 'N/A')
         
-        reg_text = f"예상 매출액은 {sales_prediction}으로 예측됩니다."
-        
+        reg_type = reg_data.get('type')
+        if reg_type == 'product_specific':
+            reg_text = f"제품 '{prediction_name}'의 고유 데이터를 기반으로 예측한 다음 달 예상 매출액은 {sales_prediction} 입니다."
+        elif reg_type == 'sub_category_fallback':
+            # "데이터 부족"이라는 직접적인 언급 대신, 카테고리 예측임을 명시
+            reg_text = f"제품 카테고리 '{prediction_name}'의 데이터를 기반으로 예측한 다음 달 예상 매출액은 {sales_prediction} 입니다."
+        elif reg_type == 'sub_category_specific':
+            reg_text = f"카테고리 '{prediction_name}' 전체의 데이터를 기반으로 예측한 다음 달 예상 매출액은 {sales_prediction} 입니다."
+        else: # error case
+            reg_text = f"예측 실패: {reg_data.get('reason', '알 수 없는 오류')}"
+
         # 컨텍스트 정보가 있는 경우, 평가 문구 추가
         if 'context' in reg_data:
             avg_sales = reg_data['context'].get('avg_sales', 'N/A')
@@ -69,10 +78,11 @@ def generate_report_node(state: AgentState): # 타입을 AgentState로 변경
         reg_text = f"회귀 분석 결과(문자열): {state['regression_return']}"
 
     # 2. 감성 분석 결과(dict)를 텍스트로 변환
-    sentiment_text = json.dumps(state.get("sentiment_analysis_result", {}), indent=2, ensure_ascii=False)
+    # 키 이름을 'sentiment_analysis_result'에서 'sentiment_return'으로 수정
+    sentiment_text = json.dumps(state.get("sentiment_return", {}), indent=2, ensure_ascii=False)
     
     # 3. RAG 결과(str)
-    rag_text = state.get("rag_result", "데이터 없음")
+    rag_text = state.get("rag_return", "데이터 없음")
 
     # 4. LLM에 전달할 프롬프트 정의
     prompt_template = f"""
@@ -92,7 +102,10 @@ def generate_report_node(state: AgentState): # 타입을 AgentState로 변경
 ---
 
 [보고서 작성 가이드라인]
-- **세부 분석**: 각 데이터(정량, 고객 반응, 시장 환경)를 개별적으로 심층 분석하고, 그 의미를 해석해주세요.
+- **세부 분석 및 판단 근거**: 각 데이터가 의미하는 바를 심층적으로 분석하고, 데이터 간의 연관성을 설명해주세요.
+  - **정량 분석**: 예측된 판매량이 과거 평균/최대치와 비교하여 어떤 의미를 가지는지 구체적으로 해석하고, 이 수치가 긍정적인지, 부정적인 신호인지 명확히 판단해주세요.
+  - **고객 반응 심층 분석**: 고객 리뷰에서 나타난 긍정적, 부정적 피드백의 **핵심 주제(예: 품질, 배송, 조립, 디자인)를 명확히 분류**하고, **각 주제에 대한 구체적인 리뷰 내용을 1~2개씩 인용**하여 주장을 뒷받침해주세요. 이 피드백이 판매량 예측에 어떤 영향을 미칠 수 있는지 연결하여 설명해주세요.
+  - **시장 환경 분석**: (데이터가 있는 경우) 시장 트렌드가 현재 제품에 유리한지 불리한지 분석하고, 경쟁 상황을 고려하여 종합적인 판단을 내려주세요.
 - **종합 판단**: 개별 분석들을 종합하여, 이 상품이 현재 시장에서 어떤 상태인지 (성장 가능성, 유지 필요, 개선 시급, 위험 등) 명확하게 평가해주세요.
 - **최종 권고**: 종합 판단을 바탕으로, 앞으로 이 상품을 어떻게 운영해야 할지에 대한 구체적인 권고 사항을 제시해주세요. (예: 제품 개선, 마케팅 강화, 가격 조정 등)
 - **단종 고려 조건**: 만약 모든 데이터를 종합적으로 분석했을 때, **판매량 예측치가 과거 평균에 비해 현저히 낮고, 고객 리뷰에서 심각한 결함이 지속적으로 언급되며, 시장 트렌드도 비관적이라면** '제품 단종 고려'를 포함한 과감한 권고를 내릴 수 있습니다. 그 외의 경우에는 구체적인 개선안을 제시해주세요.
