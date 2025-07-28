@@ -1,13 +1,12 @@
 import sys
 from pathlib import Path
+import os
+from langchain_core.messages import HumanMessage
 
 # 프로젝트 루트를 시스템 경로에 추가
 # 이렇게 하면 다른 폴더에 있는 모듈을 임포트할 수 있습니다.
 project_root = Path(__file__).resolve().parents[2]
 sys.path.append(str(project_root))
-
-from langchain_core.messages import HumanMessage
-import os
 
 from src.langgraph_workflow.build_workflow import build_workflow
 
@@ -24,32 +23,57 @@ except Exception as e:
     pass
 
 
-def main():
+def run_analysis_pipeline(payload: dict):
     """
-    워크플로우를 실행하고 사용자와 상호작용하는 메인 함수
+    백엔드로부터 받은 데이터(payload)를 기반으로 전체 분석 워크플로우를 실행하고,
+    최종 보고서를 반환하는 메인 처리 함수입니다.
     """
-    # 워크플로우 빌드
+    print("--- 분석 파이프라인 시작 ---")
+    
+    # 1. 워크플로우 빌드
     app = build_workflow()
 
-    # 초기 상태 설정
-    # user_input: 회귀 모델과 RAG에 전달될 초기 데이터
-    # messages: HumanMessage는 첫 번째 agent 노드에 전달될 메시지
+    # 2. payload 데이터를 LangGraph의 AgentState 형식으로 변환
+    #    - 회귀 모델 입력은 지금 문자열만 받으므로, 간단히 상품명과 첫 feature를 합칩니다.
+    #    - 리뷰 리스트는 하나의 큰 텍스트 덩어리로 합칩니다.
     initial_state = {
-        "user_input": "AI 스피커 신제품 데이터",
-        "customer_reviews": "이 상품 정말 좋아요! 배송도 빠르고 만족합니다. 그런데 가격이 조금 비싸네요. 배터리도 좀 빨리 닳는 것 같아요.",
-        "messages": [HumanMessage(content="이 상품에 대한 종합 보고서를 작성해줘.")]
+        "user_input": f"{payload['product_name']} (월 판매량: {payload['regression_features']['monthly_sales']})",
+        "customer_reviews": "\n".join(payload['review_list']),
     }
 
-    # 워크플로우 실행 및 결과 출력
-    for output in app.stream(initial_state):
-        for key, value in output.items():
-            print(f"--- {key} ---")
-            if "messages" in value:
-                for msg in value["messages"]:
-                    msg.pretty_print()
-            else:
-                print(value)
-        print("\n---\n")
+    # 3. 워크플로우 실행 및 최종 결과 캡처
+    # 파이프라인 실행 및 최종 상태 확인
+    final_state = app.invoke(initial_state)
+
+    # 최종 상태에서 보고서 추출
+    final_report = final_state.get("final_report", "보고서 생성에 실패했습니다.")
+    
+    print("--- 분석 파이프라인 종료 ---")
+    return final_report
+
+
+def main():
+    """
+    백엔드 API 서버를 시뮬레이션하는 메인 실행 함수입니다.
+    """
+    # 1. 백엔드가 API 요청을 받았다고 가정하고, 가짜 요청 데이터를 정의합니다.
+    mock_api_request_payload = {
+        "product_name": "AI 스피커",
+        "regression_features": { "monthly_sales": 1500 },
+        "review_list": [
+            "이 상품 정말 좋아요! 배송도 빠르고 만족합니다.",
+            "그런데 가격이 조금 비싸네요.",
+            "배터리도 좀 빨리 닳는 것 같아요."
+        ]
+    }
+
+    # 2. 메인 처리 함수를 호출하여 분석을 수행하고 최종 보고서를 받습니다.
+    final_report = run_analysis_pipeline(mock_api_request_payload)
+
+    # 3. 최종적으로 생성된 보고서를 출력합니다. (실제로는 이 결과를 API 응답으로 반환)
+    print("\n\n\n--- 최종 생성된 보고서 ---")
+    print(final_report)
+
 
 if __name__ == "__main__":
     main() 
