@@ -47,57 +47,66 @@ def generate_report_node(state: AgentState): # 타입을 AgentState로 변경
     # 1. 회귀 분석 결과(JSON) 파싱 및 자연스러운 문장으로 변환
     try:
         reg_data = json.loads(state['regression_return'])
-        reg_type = reg_data.get('type', 'error')
+        sales_prediction = reg_data.get('sales_prediction', 'N/A')
+        prediction_name = reg_data.get('name', 'N/A')
         
-        if reg_type == 'product_specific':
-            reg_text = f"제품 '{reg_data['name']}'의 고유 데이터를 기반으로 예측한 다음 달 예상 매출액은 {reg_data['value']} 입니다."
-        elif reg_type == 'sub_category_fallback':
-            reg_text = f"해당 제품의 데이터가 부족하여, 상위 카테고리 '{reg_data['name']}'의 데이터를 기반으로 예측한 다음 달 예상 매출액은 {reg_data['value']} 입니다."
-        elif reg_type == 'sub_category_specific':
-            reg_text = f"카테고리 '{reg_data['name']}' 전체의 데이터를 기반으로 예측한 다음 달 예상 매출액은 {reg_data['value']} 입니다."
-        else: # error case
-            reg_text = f"예측 실패: {reg_data.get('reason', '알 수 없는 오류')}"
-            
-    except (json.JSONDecodeError, KeyError):
-        reg_text = "회귀 분석 결과 처리 중 오류가 발생했습니다."
+        reg_text = f"예상 매출액은 {sales_prediction}으로 예측됩니다."
+        
+        # 컨텍스트 정보가 있는 경우, 평가 문구 추가
+        if 'context' in reg_data:
+            avg_sales = reg_data['context'].get('avg_sales', 'N/A')
+            max_sales = reg_data['context'].get('max_sales', 'N/A')
+            reg_text += (
+                f" 이 예측치는 해당 카테고리(또는 상품)의 과거 평균 월 매출({avg_sales}) 및 "
+                f"최고 월 매출({max_sales}) 데이터와 비교하여 평가되었습니다."
+            )
+
+        if reg_data.get('type') == 'sub_category_fallback':
+            reason = reg_data.get('reason', '데이터 부족으로 상위 카테고리 모델 사용')
+            reg_text = f"제품 '{prediction_name}'에 대한 예측: {reg_text} ({reason})"
+
+    except (json.JSONDecodeError, TypeError):
+        reg_text = f"회귀 분석 결과(문자열): {state['regression_return']}"
 
     # 2. 감성 분석 결과(dict)를 텍스트로 변환
-    sentiment_data_str = json.dumps(state['sentiment_return'], indent=2, ensure_ascii=False)
-
-    # 3. 프롬프트 템플릿 정의
-    prompt = ChatPromptTemplate.from_template(
-        """
-        당신은 데이터 기반 의사결정을 돕는 전문 비즈니스 분석가입니다.
-        아래에 제공된 세 가지 핵심 데이터(정량 예측, 고객 반응, 시장 환경)를 바탕으로,
-        "상품 현황 분석 및 향후 운영 방향 권고"에 대한 전문적인 보고서를 작성해주세요.
-        
-        보고서는 반드시 [최종 결론], [종합 평가], [세부 분석 및 판단 근거], [최종 권고 사항]의 목차로 구성되어야 합니다.
-        각 데이터가 어떻게 최종 결론에 영향을 미쳤는지 명확하게 서술해주세요.
-
-        ---
-        [1. 정량 예측 데이터 (미래 판매량)]
-        {regression_data}
-
-        [2. 고객 반응 데이터 (리뷰 기반 감성 분석)]
-        {sentiment_data}
-
-        [3. 시장 환경 데이터 (RAG 기반 시장 조사)]
-        {rag_data}
-        ---
-        
-        이제 위 데이터를 바탕으로 보고서를 작성해주세요.
-        """
-    )
+    sentiment_text = json.dumps(state.get("sentiment_analysis_result", {}), indent=2, ensure_ascii=False)
     
-    # 4. LLM 모델 초기화 및 체인 실행
+    # 3. RAG 결과(str)
+    rag_text = state.get("rag_result", "데이터 없음")
+
+    # 4. LLM에 전달할 프롬프트 정의
+    prompt_template = f"""
+당신은 냉철한 비즈니스 분석가입니다. 주어진 데이터를 바탕으로 특정 상품의 현황을 분석하고, 향후 운영 방향을 결정하여 상세한 보고서를 작성해야 합니다.
+
+아래의 3가지 데이터를 사용하여 종합적으로 판단하고, 최종 보고서를 "최종 결론", "종합 평가", "세부 분석 및 판단 근거", "최종 권고 사항"의 4가지 항목으로 나누어 작성해주세요.
+
+---
+[데이터 1: 정량 예측 데이터 (미래 판매량)]
+{reg_text}
+
+[데이터 2: 고객 반응 데이터 (리뷰 기반 감성 분석)]
+{sentiment_text}
+
+[데이터 3: 시장 환경 데이터 (RAG 기반 시장 조사)]
+{rag_text}
+---
+
+[보고서 작성 가이드라인]
+- **세부 분석**: 각 데이터(정량, 고객 반응, 시장 환경)를 개별적으로 심층 분석하고, 그 의미를 해석해주세요.
+- **종합 판단**: 개별 분석들을 종합하여, 이 상품이 현재 시장에서 어떤 상태인지 (성장 가능성, 유지 필요, 개선 시급, 위험 등) 명확하게 평가해주세요.
+- **최종 권고**: 종합 판단을 바탕으로, 앞으로 이 상품을 어떻게 운영해야 할지에 대한 구체적인 권고 사항을 제시해주세요. (예: 제품 개선, 마케팅 강화, 가격 조정 등)
+- **단종 고려 조건**: 만약 모든 데이터를 종합적으로 분석했을 때, **판매량 예측치가 과거 평균에 비해 현저히 낮고, 고객 리뷰에서 심각한 결함이 지속적으로 언급되며, 시장 트렌드도 비관적이라면** '제품 단종 고려'를 포함한 과감한 권고를 내릴 수 있습니다. 그 외의 경우에는 구체적인 개선안을 제시해주세요.
+
+결과는 반드시 한국어로, 위에 제시된 4가지 항목을 모두 포함한 보고서 형식으로만 출력해주세요.
+"""
+    
+    # 5. LLM 모델 초기화 및 체인 실행
     llm = ChatOpenAI(temperature=0, model="gpt-4o")
-    chain = prompt | llm
+    # f-string으로 완성된 프롬프트를 사용하므로, ChatPromptTemplate.from_template을 직접 사용하지 않습니다.
+    # 대신, 완성된 문자열을 HumanMessage로 감싸서 전달합니다.
+    chain = llm
     
-    response = chain.invoke({
-        "regression_data": reg_text,
-        "sentiment_data": sentiment_data_str,
-        "rag_data": state['rag_return']
-    })
+    response = chain.invoke(prompt_template)
     
     print("---최종 보고서 생성 완료---")
     return {"final_report": response.content}

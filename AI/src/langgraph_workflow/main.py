@@ -70,10 +70,9 @@ def main():
     백엔드 API 서버를 시뮬레이션하는 메인 실행 함수입니다.
     """
     mock_api_request_payload = {
-        "product_name": "Bush Somerset Collection Bookcase", 
+        "product_name": "Bretford CR4500 Series Slim Rectangular Table", 
         "prediction_period": "다음 1개월",
-        # 하드코딩된 리뷰 목록 대신, 파일 경로를 전달합니다.
-        "review_file_path": "data/bookcase_reviews.txt"
+        "review_file_path": "data/table_reviews.txt"
     }
 
     final_report = run_analysis_pipeline(mock_api_request_payload)
