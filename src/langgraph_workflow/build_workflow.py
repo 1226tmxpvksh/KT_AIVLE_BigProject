@@ -4,7 +4,14 @@ from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 
-from .nodes import call_model_node, call_tool_node, should_continue_node, call_regression_model_node
+from .nodes import (
+    call_model_node, 
+    call_tool_node, 
+    should_continue_node, 
+    call_regression_model_node, 
+    call_sentiment_analysis_node,
+    call_rag_node
+)
 from .models.graph_state import AgentState
 
 
@@ -33,12 +40,16 @@ def build_workflow():
 
     # 노드 추가
     workflow.add_node("regression", call_regression_model_node)
+    workflow.add_node("sentiment_analysis", call_sentiment_analysis_node)
+    workflow.add_node("rag", call_rag_node)
     workflow.add_node("agent", call_model_with_tools)
     workflow.add_node("tool", call_tool_node)
 
     # 엣지 추가
     workflow.set_entry_point("regression")
-    workflow.add_edge("regression", "agent")
+    workflow.add_edge("regression", "sentiment_analysis")
+    workflow.add_edge("sentiment_analysis", "rag")
+    workflow.add_edge("rag", "agent")
     workflow.add_conditional_edges(
         "agent",
         should_continue_node,

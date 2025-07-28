@@ -13,10 +13,13 @@ class AgentState(TypedDict):
 
     # init_state
     user_input: str
+    customer_reviews: str  # 감성 분석을 위한 고객 리뷰
     # 노드 간에 전달되어야하는 데이터
     messages: Annotated[List[BaseMessage], operator.add]
     # 노드 간에 전달되어야하는 데이터
     regression_return: str
+    sentiment_return: dict  # 감성 분석 결과
+    rag_return: str  # RAG 검색 및 요약 결과
     # 노드 간에 전달되어야하는 데이터
     model_return: str
     # 노드 간에 전달되어야하는 데이터

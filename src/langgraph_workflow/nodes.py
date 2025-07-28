@@ -6,6 +6,9 @@ from langchain_openai import ChatOpenAI
 
 from src.langgraph_workflow.models.graph_state import AgentState
 from src.regression_model.regression import RegressionModel
+from src.sentiment_analysis.analysis import SentimentAnalyzer
+from src.rag_retriever.retriever import RagRetriever
+
 
 # 이 파일은 워크플로우의 노드들을 정의합니다.
 
@@ -26,6 +29,41 @@ def call_regression_model_node(state: AgentState):
         "regression_return": str(prediction),
         "messages": [HumanMessage(content=result_message)]
     }
+
+
+def call_sentiment_analysis_node(state: AgentState):
+    """
+    SentimentAnalyzer를 호출하여 고객 리뷰를 분석하고 결과를 상태에 추가합니다.
+    """
+    print("---고객 리뷰 감성 분석 호출---")
+    reviews = state["customer_reviews"]
+    analyzer = SentimentAnalyzer()
+    analysis_result = analyzer.analyze(reviews)
+
+    # 분석 결과 요약을 HumanMessage로 만들어 messages 리스트에 추가
+    summary_message = f"고객 리뷰 분석 요약: {analysis_result['summary']}"
+
+    return {
+        "sentiment_return": analysis_result,
+        "messages": [HumanMessage(content=summary_message)]
+    }
+
+
+def call_rag_node(state: AgentState):
+    """
+    RagRetriever를 호출하여 관련 시장 동향을 검색하고 요약합니다.
+    """
+    print("---시장 동향 분석(RAG) 호출---")
+    # user_input에 상품명이 포함되어 있다고 가정합니다. (예: "AI 스피커 신제품 데이터")
+    query = state["user_input"]
+    retriever = RagRetriever()
+    rag_result = retriever.retrieve_and_summarize(query)
+
+    return {
+        "rag_return": rag_result,
+        "messages": [HumanMessage(content=rag_result)]
+    }
+
 
 def call_model_node(state: AgentState, model: ChatOpenAI, tools: list):
     """
