@@ -1,6 +1,6 @@
 from langgraph.graph import StateGraph, END
 from .nodes import (
-    call_regression_model_node, 
+    call_regression_model_node,
     call_sentiment_analysis_node,
     call_rag_node,
     generate_report_node

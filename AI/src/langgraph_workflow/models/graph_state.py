@@ -21,6 +21,7 @@ class AgentState(TypedDict):
     sentiment_return: dict  # 감성 분석 결과
     rag_return: str  # RAG 검색 및 요약 결과
     final_report: str # 최종 생성된 보고서
+    project_root: str # 프로젝트 루트 경로 추가
     # 노드 간에 전달되어야하는 데이터
     model_return: str
     # 노드 간에 전달되어야하는 데이터

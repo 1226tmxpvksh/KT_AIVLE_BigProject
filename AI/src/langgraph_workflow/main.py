@@ -3,25 +3,37 @@ from pathlib import Path
 import os
 from typing import List
 
-# 경로 설정
-project_root = Path(__file__).resolve().parents[2]
-sys.path.append(str(project_root / 'AI'))
+# --- 경로 설정 수정 ---
+# 이 파일의 절대 경로를 기준으로 프로젝트 루트를 찾습니다.
+# '.../KT_AIVLE_BigProject/AI/src/langgraph_workflow/main.py' 이므로 상위 4번으로 이동하면 프로젝트 루트입니다.
+try:
+    # 스크립트의 실제 위치를 기반으로 project_root를 결정
+    project_root = Path(__file__).resolve().parents[4]
+except IndexError:
+    # 예외 발생 시 현재 작업 디렉토리를 기준으로 설정
+    project_root = Path.cwd()
+
+# 파이썬 경로에 AI 폴더를 추가합니다.
+ai_root = project_root / 'AI'
+if str(ai_root) not in sys.path:
+    sys.path.append(str(ai_root))
 
 from src.langgraph_workflow.build_workflow import build_workflow
 
 # .env 파일 로드 (경로 견고성 강화)
 try:
-    dotenv_path = project_root / 'AI' / '.env'
+    dotenv_path = ai_root / '.env'
     if not dotenv_path.exists():
         dotenv_path_alt = project_root / '.env'
         if dotenv_path_alt.exists():
             dotenv_path = dotenv_path_alt
 
-    with open(dotenv_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            if line.strip() and not line.startswith('#'):
-                key, value = line.strip().split('=', 1)
-                os.environ[key] = value.strip().strip("'\"")
+    if dotenv_path.exists():
+        with open(dotenv_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip() and not line.startswith('#'):
+                    key, value = line.strip().split('=', 1)
+                    os.environ[key] = value.strip().strip("'\"")
 except Exception:
     pass # .env 파일 없어도 진행
 
@@ -50,12 +62,13 @@ def run_analysis_pipeline(payload: dict):
     user_input_str = f"{payload['product_name']}, 예측 기간: {payload['prediction_period']}"
     
     # 파일 경로에서 리뷰 로드
-    review_file_path = project_root / payload['review_file_path']
+    review_file_path = ai_root / payload['review_file_path']
     reviews = load_reviews_from_file(review_file_path)
 
     initial_state = {
         "user_input": user_input_str,
         "customer_reviews": "\n".join(reviews),
+        "project_root": str(project_root)  # AgentState에 프로젝트 루트 경로 추가
     }
 
     final_state = app.invoke(initial_state)

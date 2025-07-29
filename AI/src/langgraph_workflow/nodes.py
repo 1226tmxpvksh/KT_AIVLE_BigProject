@@ -1,9 +1,12 @@
+from typing import TypedDict, List
+import json
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-import json
+from langchain.prompts import ChatPromptTemplate
+from dotenv import load_dotenv
+from pydantic.v1 import BaseModel, Field
 
-from .models.graph_state import AgentState # 주석 해제 및 임포트
+from .models.graph_state import AgentState
 from src.regression_model.regression import RegressionModel
 from src.sentiment_analysis.analysis import SentimentAnalyzer
 from src.rag_retriever.retriever import RagRetriever
@@ -31,12 +34,15 @@ def call_sentiment_analysis_node(state: AgentState): # 타입을 AgentState로 �
     return {"sentiment_return": analysis_result}
 
 def call_rag_node(state: AgentState): # 타입을 AgentState로 변경
-    """RagRetriever를 호출하여 관련 시장 동향을 검색하고 요약합니다."""
+    """
+    RAG Retriever를 호출하여 시장 및 트렌드 분석을 수행합니다.
+    """
     print("---시장 동향 분석(RAG) 호출---")
-    query = state["user_input"]
-    retriever = RagRetriever()
-    rag_result = retriever.retrieve_and_summarize(query)
-    return {"rag_return": rag_result}
+    user_input = state["user_input"]
+    project_root = state["project_root"]
+    retriever = RagRetriever(project_root=project_root)
+    rag_return = retriever.retrieve_and_summarize(user_input)
+    return {"rag_return": rag_return}
 
 def generate_report_node(state: AgentState): # 타입을 AgentState로 변경
     """
